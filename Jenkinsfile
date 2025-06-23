@@ -28,29 +28,21 @@ pipeline {
                 }
             }
         }
-        
         stage('Deploy Stack') {
             steps {
                 sh """
-                # Get project name from directory
-                PROJECT_NAME=\$(basename \$(pwd))
-                
-                docker compose -p \$PROJECT_NAME -f docker-compose.yml down --remove-orphans || true
-                docker compose -p \$PROJECT_NAME -f docker-compose.yml up -d --build
+                docker compose -f docker-compose.yml down --remove-orphans || true
+                docker compose -f docker-compose.yml up -d --build
                 """
             }
         }
-        
         stage('Verify Deployment') {
             steps {
                 sh """
-                # Get project name from directory
-                PROJECT_NAME=\$(basename \$(pwd))
-                
                 # Wait for containers to become healthy
                 echo "Waiting for containers to become healthy..."
-                timeout 120s bash -c "while ! docker inspect \${PROJECT_NAME}-nextcloud-db-1 --format '{{.State.Health.Status}}' | grep -q 'healthy'; do sleep 5; done"
-                timeout 120s bash -c "while ! docker inspect \${PROJECT_NAME}-nextcloud-app-1 --format '{{.State.Health.Status}}' | grep -q 'healthy'; do sleep 5; done"
+                timeout 120s bash -c "while ! docker inspect nextcloud-db --format '{{.State.Health.Status}}' | grep -q 'healthy'; do sleep 5; done"
+                timeout 120s bash -c "while ! docker inspect nextcloud-app --format '{{.State.Health.Status}}' | grep -q 'healthy'; do sleep 5; done"
                 
                 # Check container status
                 echo "\\n\\n=== Container status ==="
@@ -58,13 +50,13 @@ pipeline {
                 
                 # Check container logs
                 echo "\\n\\n=== Nextcloud logs ==="
-                docker logs \${PROJECT_NAME}-nextcloud-app-1 --tail 100
+                docker logs nextcloud-app --tail 100
                 echo "\\n\\n=== Database logs ==="
-                docker logs \${PROJECT_NAME}-nextcloud-db-1 --tail 50
+                docker logs nextcloud-db --tail 50
                 
                 # Check host port binding
                 echo "\\n\\n=== Port bindings ==="
-                docker port \${PROJECT_NAME}-nextcloud-app-1
+                docker port nextcloud-app
                 
                 # Check server listening ports
                 echo "\\n\\n=== Listening ports ==="
@@ -81,7 +73,6 @@ pipeline {
             }
         }
     }
-    
     post {
         always {
             sh "rm -f '${ENV_FILE}' || true"
