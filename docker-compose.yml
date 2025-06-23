@@ -10,24 +10,32 @@ services:
       - ${DATA_VOLUME}/db:/var/lib/mysql
     networks:
       - nextcloud-net
-    # Optional: Expose DB port if needed (default 3306 not exposed)
-    # ports:
-    #   - "3307:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -u root -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   nextcloud-app:
     image: nextcloud:stable-apache
     restart: always
     ports:
-      - "${NEXTCLOUD_PORT}:80"   # Custom port mapping
+      - "${NEXTCLOUD_PORT}:80"
     env_file:
       - ./deployments/production.env
     volumes:
       - ${DATA_VOLUME}/data:/var/www/html/data
       - ${DATA_VOLUME}/config:/var/www/html/config
     depends_on:
-      - nextcloud-db
+      nextcloud-db:
+        condition: service_healthy
     networks:
       - nextcloud-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 networks:
   nextcloud-net:
