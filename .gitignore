@@ -1,0 +1,10 @@
+# Ignore sensitive files
+deployments/
+.env
+*.env
+secrets/
+config.php
+
+# Ignore local data
+/mnt/
+/volumes/
