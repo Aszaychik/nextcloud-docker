@@ -32,8 +32,11 @@ pipeline {
         stage('Deploy Stack') {
             steps {
                 sh """
-                docker compose -f docker-compose.yml down --remove-orphans || true
-                docker compose -f docker-compose.yml up -d --build
+                # Get project name from directory
+                PROJECT_NAME=\$(basename \$(pwd))
+                
+                docker compose -p \$PROJECT_NAME -f docker-compose.yml down --remove-orphans || true
+                docker compose -p \$PROJECT_NAME -f docker-compose.yml up -d --build
                 """
             }
         }
@@ -41,30 +44,37 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 sh """
-                # Wait for services to start
+                # Get project name from directory
+                PROJECT_NAME=\$(basename \$(pwd))
+                
+                # Wait for containers to become healthy
                 echo "Waiting for containers to become healthy..."
-                timeout 120s bash -c "while ! docker inspect nextcloud-db --format '{{.State.Health.Status}}' | grep -q 'healthy'; do sleep 5; done"
-                timeout 120s bash -c "while ! docker inspect nextcloud-app --format '{{.State.Health.Status}}' | grep -q 'healthy'; do sleep 5; done"
+                timeout 120s bash -c "while ! docker inspect \${PROJECT_NAME}-nextcloud-db-1 --format '{{.State.Health.Status}}' | grep -q 'healthy'; do sleep 5; done"
+                timeout 120s bash -c "while ! docker inspect \${PROJECT_NAME}-nextcloud-app-1 --format '{{.State.Health.Status}}' | grep -q 'healthy'; do sleep 5; done"
                 
                 # Check container status
                 echo "\\n\\n=== Container status ==="
                 docker ps -a --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
                 
-                # Check logs
+                # Check container logs
                 echo "\\n\\n=== Nextcloud logs ==="
-                docker logs nextcloud-app --tail 100
+                docker logs \${PROJECT_NAME}-nextcloud-app-1 --tail 100
                 echo "\\n\\n=== Database logs ==="
-                docker logs nextcloud-db --tail 50
+                docker logs \${PROJECT_NAME}-nextcloud-db-1 --tail 50
                 
-                # Check port binding
+                # Check host port binding
                 echo "\\n\\n=== Port bindings ==="
-                docker port nextcloud-app
+                docker port \${PROJECT_NAME}-nextcloud-app-1
                 
-                # Check network connectivity
-                echo "\\n\\n=== Network test ==="
-                docker exec nextcloud-app curl -Is http://localhost || echo "Container network test failed"
+                # Check server listening ports
+                echo "\\n\\n=== Listening ports ==="
+                sudo netstat -tulpn | grep ':${NEXTCLOUD_PORT}'
                 
-                # Final access test
+                # Test local access
+                echo "\\n\\n=== Local access test ==="
+                curl -I http://localhost:${NEXTCLOUD_PORT} || echo "Local access failed"
+                
+                # Test external access
                 echo "\\n\\n=== External access test ==="
                 curl -I --connect-timeout 5 http://${SERVER_IP}:${NEXTCLOUD_PORT} || echo "External access test failed"
                 """
