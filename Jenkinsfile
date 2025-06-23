@@ -10,22 +10,24 @@ pipeline {
         stage('Prepare Environment') {
             steps {
                 withCredentials([file(credentialsId: 'nextcloud-env-file', variable: 'SECRET_ENV')]) {
-                    // Notice the use of single-quoted triple-quotes for the sh script
-                    sh '''
-                        mkdir -p "${WORKSPACE}/deployments"
-                        sudo mkdir -p "${DATA_VOLUME}/{data,db,config}"
+                sh '''
+                    # ensure deploy folder exists
+                    mkdir -p "${WORKSPACE}/deployments"
 
-                        # Copy and customize env file
-                        cp "$SECRET_ENV" "$ENV_FILE"
-                        sed -i 's/YOUR_PUBLIC_IP/'"$SERVER_IP"'/g' "$ENV_FILE"
+                    # correctly expand braces to create three dirs
+                    sudo mkdir -p "${DATA_VOLUME}"/{data,db,config}
 
-                        # CORRECT PERMISSIONS (UID 33 is www-data)
-                        sudo chown -R 33:33 "${DATA_VOLUME}/data"
-                        sudo chown -R 33:33 "${DATA_VOLUME}/config"
-                        sudo chown -R 999:999 "${DATA_VOLUME}/db"  # For MariaDB
-                        sudo chmod -R 775 "${DATA_VOLUME}"
-                        chmod 600 "$ENV_FILE"
-                    '''
+                    # copy & patch the env-file
+                    cp "$SECRET_ENV" "$ENV_FILE"
+                    sed -i 's/YOUR_PUBLIC_IP/'"$SERVER_IP"'/g' "$ENV_FILE"
+
+                    # set ownership & perms
+                    sudo chown -R 33:33 "${DATA_VOLUME}/data"
+                    sudo chown -R 33:33 "${DATA_VOLUME}/config"
+                    sudo chown -R 999:999 "${DATA_VOLUME}/db"
+                    sudo chmod -R 775 "${DATA_VOLUME}"
+                    chmod 600 "$ENV_FILE"
+                '''
                 }
             }
         }
